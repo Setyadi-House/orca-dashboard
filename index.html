@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>ORCA — Regime Correlation Dashboard</title>
+<meta name="description" content="ORCA cross-asset regime, diversification, and portfolio-risk dashboard." />
+<link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+<div class="top-strip"><span>ORCA live dashboard · portfolio risk overlay</span><span>Automated EODHD data · GitHub Actions</span></div>
+<div class="shell">
+  <header class="hero" id="overview">
+    <div class="hero-top">
+      <div>
+        <div class="eyebrow">Cross-Asset Systemic Risk · 10-Trading-Day Horizon</div>
+        <h1>ORCA — Regime Correlation Dashboard</h1>
+        <div class="subtitle">A decision-first dashboard for monitoring whether diversification is weakening, how rally and crash signals interact, and what that may imply for portfolio risk. The presentation now follows the approved mock design while the calculations continue to use the automated live ORCA-Lite data pipeline.</div>
+      </div>
+      <div class="hero-actions">
+        <span class="status-badge" id="engineStatusBadge">Loading data</span>
+        <span class="mock-badge" id="dataModeBadge">Checking data mode</span>
+      </div>
+    </div>
+    <div class="notice" id="dataNotice"><strong>Important:</strong> loading the latest ORCA data. Percentile ranks provide risk context; they are not literal crash or rally probabilities. Hover over, or click, any <strong>ⓘ</strong> icon for a plain-language explanation.</div>
+    <div class="control-bar">
+      <div class="control"><label>Universe</label><select class="select" id="universeSelect"><option>Paper universe · 24 ETFs</option><option disabled>Global ORCA · future phase</option></select></div>
+      <div class="control"><label>Correlation estimator</label><select class="select" id="estimatorSelect"><option value="composite">Composite · All estimators</option><option value="ewm">EWM · 30D half-life</option><option value="60d">Rolling · 60D</option><option value="120d">Rolling · 120D</option></select></div>
+      <div class="control"><label>Network threshold</label><div class="segment" id="thresholdSegment"><button class="seg-btn" data-v="0.30">0.30</button><button class="seg-btn active" data-v="0.50">0.50</button><button class="seg-btn" data-v="0.70">0.70</button></div></div>
+      <div class="control"><label>Edges</label><div class="segment" id="edgeMode"><button class="seg-btn active" data-v="absolute">Absolute</button><button class="seg-btn" data-v="positive">Positive only</button></div></div>
+      <button class="btn" id="printBtn">Print snapshot</button>
+      <div class="asof" id="asOfText">Loading market date…</div>
+    </div>
+    <div class="kpi-grid" id="kpiGrid"></div>
+  </header>
+
+  <div class="nav-wrap">
+    <nav class="section-nav">
+      <span class="nav-title">ORCA</span>
+      <a href="#decision">Decision cockpit</a>
+      <a href="#outcomes">Market outcomes</a>
+      <a href="#structure">Structural health</a>
+      <a href="#network">Correlation network</a>
+      <a href="#heatmap">Heatmap</a>
+      <a href="#assets">Asset roles</a>
+      <a href="#drivers">Model drivers</a>
+      <a href="#advanced">Advanced metrics</a>
+      <a href="#audit">Audit</a>
+      <span class="nav-spacer"></span>
+      <span class="small-status" id="navStatus">● loading engine</span>
+    </nav>
+  </div>
+
+  <main>
+    <section class="card full" id="decision">
+      <div class="card-head">
+        <div><h2>Decision Cockpit</h2><div class="card-kicker">Joint rally–crash map translated into an explicit risk-budget view</div></div>
+        <span class="pill watch">Risk context, not a deterministic forecast</span>
+      </div>
+      <div class="decision-grid">
+        <div class="chart-box">
+          <svg id="regimeMap" viewBox="0 0 560 360" aria-label="Rally and crash regime map"></svg>
+          <div class="tooltip" id="regimeTooltip"></div>
+        </div>
+        <div class="pm-panel">
+          <div class="pm-header">
+            <div><div class="pm-regime" id="pmRegime">Caution</div><div class="pm-sub" id="pmSummary">Diversification is weakening, but the paper's crisis exit threshold has not been crossed.</div></div>
+            <div><div class="exposure-number" id="exposureNumber">0.7×</div><div class="exposure-label">Illustrative equity exposure</div></div>
+          </div>
+          <div class="alloc-bar" id="allocBar"></div>
+          <div class="alloc-legend" id="allocLegend"></div>
+          <div class="action-list" id="actionList"></div>
+          <div class="trigger-box"><strong>Next decision trigger:</strong> crash rank above 60 would move this sample into the paper's danger-exit zone; a recovery in effective rank above 12 and crash rank below 40 would weaken the caution thesis.</div>
+        </div>
+      </div>
+    </section>
+
+    <section class="card full" id="outcomes">
+      <div class="card-head">
+        <div><h2>Regime &amp; Market Outcome Monitor</h2><div class="card-kicker">Compare the Decision Cockpit with what the selected index actually did before, during, and after each regime</div></div>
+        <div class="outcome-controls">
+          <div class="control"><label>Index</label><select class="select" id="outcomeIndex"><option value="spy">SPY · S&amp;P 500</option><option value="qqq">QQQ · Nasdaq 100</option><option value="iwm">IWM · Russell 2000</option></select></div>
+          <div class="segment" id="outcomeRange"><button class="seg-btn" data-v="1">1Y</button><button class="seg-btn" data-v="2">2Y</button><button class="seg-btn" data-v="3">3Y</button><button class="seg-btn active" data-v="5">5Y</button><button class="seg-btn" data-v="10">10Y</button></div>
+          <div class="segment" id="outcomeDisplay"><button class="seg-btn active" data-v="level">Index level</button><button class="seg-btn" data-v="yoy">Rolling 1Y</button></div>
+          <div class="segment" id="outcomeMode"><button class="seg-btn" data-v="live">Live view</button><button class="seg-btn active" data-v="research">Research view</button></div>
+        </div>
+      </div>
+      <div class="outcome-grid">
+        <div>
+          <div class="outcome-chart-shell" id="outcomeChartShell">
+            <svg id="marketOutcomeChart" aria-label="Index performance with ORCA regime shading, rally and crash ranks, and recommended exposure"></svg>
+            <div class="tooltip" id="marketOutcomeTooltip"></div>
+          </div>
+          <div class="regime-legend">
+            <span><i class="regime-swatch" style="background:#e7eee3"></i>Normal</span>
+            <span><i class="regime-swatch" style="background:#cfe4d3"></i>Rally sweet spot</span>
+            <span><i class="regime-swatch" style="background:#f6e7bf"></i>Caution</span>
+            <span><i class="regime-swatch" style="background:#efd2cd"></i>Crisis</span>
+            <span><i class="regime-swatch" style="background:#f1d6c6"></i>Euphoria</span>
+            <span id="outcomeIndexLegend"><i class="line-sample" style="background:#4a3929"></i>Selected index, rebased to 100</span>
+            <span><i class="line-sample" style="background:var(--purple)"></i>Recommended equity exposure</span>
+          </div>
+        </div>
+        <aside class="outcome-side" id="outcomeSnapshot"></aside>
+      </div>
+      <div class="performance-wrap">
+        <div class="performance-head">
+          <div><h3>Historical performance by regime</h3><p>Research view measures the selected index from the first day of each regime episode inside the selected time window. Statistics are calculated from the selected historical window and are shown only in Research view.</p></div>
+          <span class="help-hint"><button class="info-trigger" data-info="outcome-performance" aria-label="Explain performance by regime">i</button> How to read this table</span>
+        </div>
+        <div class="table-wrap"><table class="regime-table"><thead><tr><th>Regime</th><th>Episodes</th><th>Median next 10D</th><th>Positive hit rate</th><th>Median next-10D max drawdown</th><th>Worst episode</th></tr></thead><tbody id="regimeStatsBody"></tbody></table></div>
+      </div>
+      <div class="section-note"><span><strong>Default index:</strong> SPY, because the paper defines its rally and crash targets on the S&amp;P 500. QQQ and IWM are diagnostic alternatives.</span><span id="outcomeMetricNote"><strong>Index level:</strong> rebased to 100 at the beginning of the selected window, making cumulative wealth and drawdowns easy to see.</span><span>Research mode may show future outcomes; Live mode deliberately hides information that was not yet known on each historical date.</span></div>
+    </section>
+
+    <section class="card full" id="structure">
+      <div class="card-head">
+        <div><h2>Simple Structural Health</h2><div class="card-kicker">Four plain-language measures answer whether diversification is still working</div></div>
+        <div style="display:flex;align-items:center;gap:9px"><span class="help-hint">Hover or click <button class="info-trigger" data-info="structure-overview" aria-label="Explain structural health">i</button></span><span class="pill bad" id="fragilityPill">Loading</span></div>
+      </div>
+      <div class="structure-summary" id="structureSummary"><strong>Loading structural confirmation…</strong><span>This is a warning framework, not proof that a crash must happen.</span></div>
+      <div class="simple-health-grid" id="simpleHealthGrid"></div>
+      <div class="section-note"><span>The first screen intentionally uses simple sentences. Technical names and formulas are available in the Advanced Structural Metrics section.</span><span>Direction and speed of change matter more than any single static number.</span></div>
+    </section>
+
+    <section class="card full" id="network">
+      <div class="card-head">
+        <div><h2>24-Asset Correlation Network</h2><div class="card-kicker">Node size = relative number of strong links · edge width = correlation strength</div></div>
+        <div class="network-controls"><span class="pill info" id="edgeCountPill">— edges</span><span class="pill neutral">Hover or click a node</span></div>
+      </div>
+      <div class="network-wrap" id="networkWrap">
+        <svg id="networkSvg" aria-label="Cross-asset correlation network"></svg>
+        <div class="tooltip" id="networkTooltip"></div>
+      </div>
+      <div class="legend-row" id="groupLegend"></div>
+      <div class="section-note"><span>Positive edges use warm rust; negative edges use blue. “Absolute” includes both signs when testing dependence strength.</span><span>Click empty space to clear a highlighted node.</span></div>
+    </section>
+
+
+    <section class="card full" id="heatmap">
+      <div class="card-head heatmap-toolbar">
+        <div><h2>Correlation Heatmap — Paper Universe</h2><div class="card-kicker">Signed pairwise correlations across all 24 instruments</div></div>
+        <div class="corr-scale"><span>−1</span><span class="gradient"></span><span>+1</span></div>
+      </div>
+      <div class="heatmap-shell" id="heatmapShell">
+        <canvas id="heatmapCanvas" width="920" height="920" aria-label="24 by 24 correlation heatmap"></canvas>
+        <div class="tooltip" id="heatmapTooltip"></div>
+      </div>
+      <div class="pairs-grid" id="pairGrid"></div>
+      <div class="section-note"><span>Use the heatmap to see clusters; hover a ticker label to see the asset name, and use the network to see the system's most important hubs.</span><span>In production, clicking a cell would open the pair's history and rolling-correlation chart.</span></div>
+    </section>
+
+
+    <section class="card full" id="assets">
+      <div class="card-head">
+        <div><h2>Asset Network Role Monitor</h2><div class="card-kicker">Which instruments duplicate the same risk, confirm market stress, or still provide a potential offset?</div></div>
+        <div class="table-tools"><input class="search" id="assetSearch" placeholder="Search ticker, sleeve, or portfolio meaning…" /><select class="select control" id="assetSort"><option value="links">Sort: strong links</option><option value="avgcorr">Sort: average relationship</option><option value="change">Sort: 20D correlation change</option><option value="ret5">Sort: 5D return</option><option value="ticker">Sort: ticker</option></select></div>
+      </div>
+      <div class="table-explainer">
+        <div><strong>Strong links</strong>How many of the other 23 assets have a correlation above the selected network threshold.</div>
+        <div><strong>Average relationship</strong>How strongly the asset is connected to the full universe, regardless of whether the sign is positive or negative.</div>
+        <div><strong>Portfolio meaning</strong>A plain-language interpretation of duplicate exposure, stress confirmation, or potential diversification.</div>
+      </div>
+      <div class="table-wrap"><table class="asset-role-table"><thead><tr>
+        <th>Ticker</th><th>Instrument</th><th>Sleeve</th><th>1D</th><th>5D</th>
+        <th><span class="th-label">Avg relationship <button class="info-trigger" data-info="asset-avg-relationship" aria-label="Explain average relationship">i</button></span></th>
+        <th><span class="th-label">Strong links <button class="info-trigger" data-info="asset-strong-links" aria-label="Explain strong links">i</button></span></th>
+        <th><span class="th-label">Strongest relationship <button class="info-trigger" data-info="asset-strongest-link" aria-label="Explain strongest relationship">i</button></span></th>
+        <th><span class="th-label">vs SPY <button class="info-trigger" data-info="asset-vs-spy" aria-label="Explain relationship to SPY">i</button></span></th>
+        <th><span class="th-label">20D Δ relationship <button class="info-trigger" data-info="asset-corr-change" aria-label="Explain 20-day change in correlation">i</button></span></th>
+        <th>Portfolio meaning</th>
+      </tr></thead><tbody id="assetBody"></tbody></table></div>
+      <div class="asset-detail-panel" id="assetDetailPanel"></div>
+      <div class="section-note"><span>Click any row for a plain-language explanation. A highly connected asset is not automatically bullish or bearish.</span><span>The table now shows actual strong-link counts instead of an abstract 0–100 centrality score.</span></div>
+    </section>
+
+    <section class="card full" id="drivers">
+      <div class="card-head">
+        <div><h2>Model Driver Monitor</h2><div class="card-kicker">What is pushing the current rally and crash signals higher or lower?</div></div>
+        <div style="display:flex;align-items:center;gap:9px"><span class="help-hint">Hover a variable or click <button class="info-trigger" data-info="driver-overview" aria-label="Explain model drivers">i</button></span><span class="pill neutral">Explanation layer</span></div>
+      </div>
+      <div class="driver-explainer"><strong>How to read:</strong> a positive contribution pushes that model output higher; a negative contribution pushes it lower. The values are relative model contributions—not probabilities and not proof of causality.</div>
+      <div class="driver-grid">
+        <div class="driver-panel" id="crashDrivers"></div>
+        <div class="driver-panel" id="rallyDrivers"></div>
+      </div>
+      <div class="section-note"><span>Each variable now has a standardized explanation: what it measures, current reading, historical comparison, current model effect, and portfolio meaning.</span><span>The paper reports graph/spectral features as especially important for crash detection.</span></div>
+    </section>
+
+    <section class="card full" id="advanced">
+      <div class="card-head">
+        <div><h2>Advanced Structural Metrics</h2><div class="card-kicker">Technical diagnostics are retained for audit and research, but removed from the primary decision screen</div></div>
+        <span class="pill neutral">Optional depth</span>
+      </div>
+      <details class="advanced-disclosure">
+        <summary><span>Show AR3, dominant-factor ratio, cluster tightness, matrix instability, and random-noise comparison</span></summary>
+        <div class="advanced-grid" id="advancedMetricGrid"></div>
+      </details>
+      <div class="section-note"><span>These measures help diagnose *why* diversification is weakening; they should not be interpreted as stand-alone directional forecasts.</span><span>Hover or click any information icon for a simple example.</span></div>
+    </section>
+
+    <section class="card full" id="audit">
+      <div class="card-head">
+        <div><h2>Pipeline, Data Health & Research Governance</h2><div class="card-kicker">A permanent audit layer prevents a polished signal from hiding weak data or unresolved replication issues</div></div>
+        <span class="pill watch" id="auditPill">Research governance</span>
+      </div>
+      <div class="audit-grid">
+        <div>
+          <div class="pipeline">
+            <div class="pipe-step"><strong>24 adjusted closes</strong><span>EODHD paper universe</span></div>
+            <div class="pipe-step"><strong>Daily returns</strong><span>Alignment + gap policy</span></div>
+            <div class="pipe-step"><strong>3 correlation matrices</strong><span>60D · 120D · EWM</span></div>
+            <div class="pipe-step"><strong>Spectral metrics</strong><span>Eigenvalues + topology</span></div>
+            <div class="pipe-step"><strong>Market context</strong><span>Price + volatility</span></div>
+            <div class="pipe-step"><strong>ORCA-Lite scoring</strong><span>Rally + crash outputs</span></div>
+            <div class="pipe-step"><strong>Regime & exposure</strong><span>Decision overlay</span></div>
+          </div>
+          <div class="health-grid">
+            <div class="health"><div class="health-label">Universe coverage</div><div class="health-value" id="auditCoverage">—</div><div class="health-meta" id="auditCoverageMeta">Loading</div></div>
+            <div class="health"><div class="health-label">Latest aligned date</div><div class="health-value" id="auditLatestDate">—</div><div class="health-meta" id="auditLatestMeta">Loading</div></div>
+            <div class="health"><div class="health-label">Common aligned rows</div><div class="health-value" id="auditRows">—</div><div class="health-meta" id="auditRowsMeta">Loading</div></div>
+            <div class="health"><div class="health-label">Model status</div><div class="health-value" id="auditModel">—</div><div class="health-meta" id="auditModelMeta">Loading</div></div>
+          </div>
+        </div>
+        <div class="flag-list" id="auditFlagList"></div>
+      </div>
+      <div class="section-note"><span>Design principle: every live signal must expose its source date, model version, feature set, and validation status.</span><span>Recommended refresh cadence after implementation: once daily after all US-listed ETFs have settled.</span></div>
+    </section>
+  </main>
+  <footer class="footer"><span>ORCA Regime Correlation Dashboard · approved mock design</span><span>Automated daily data · transparent ORCA-Lite approximation</span></footer>
+</div>
+
+
+<div class="help-popover" id="helpPopover" role="tooltip"></div>
+<div class="info-modal-backdrop" id="infoModal" aria-hidden="true">
+  <div class="info-modal-card" role="dialog" aria-modal="true" aria-labelledby="infoModalTitle">
+    <button class="info-close" id="infoClose" aria-label="Close explanation">×</button>
+    <div id="infoModalContent"></div>
+  </div>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>
